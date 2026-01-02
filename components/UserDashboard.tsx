@@ -5,7 +5,12 @@ import { geminiService } from '../services/geminiService';
 import { LearningPathItem, SkillGap, Course, MicroLesson, User, Achievement, SkillStat } from '../types';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
-type UserTab = 'dashboard' | 'courses' | 'explorer' | 'micro' | 'creative' | 'roadmap' | 'analytics' | 'skills' | 'resume' | 'achievements' | 'profile';
+type UserTab = 'dashboard' | 'courses' | 'explorer' | 'micro' | 'chat' | 'creative' | 'roadmap' | 'analytics' | 'skills' | 'resume' | 'achievements' | 'profile';
+
+interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+}
 
 export const UserDashboard: React.FC = () => {
   const { user, logout, updateUser } = useAuth() as any;
@@ -13,19 +18,26 @@ export const UserDashboard: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  // Chat AI State
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
+    { role: 'model', text: `Hi ${user?.name.split(' ')[0]}! I'm your EduAI Study Buddy. How can I help you reach your goal of "${user?.learningGoal}" today?` }
+  ]);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
   // Image AI State
   const [sourceImage, setSourceImage] = useState<string | null>(null);
   const [editedImage, setEditedImage] = useState<string | null>(null);
   const [imagePrompt, setImagePrompt] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Proficiency calculation: Strictly derived from quiz performance. Starts at 0.
+  // Proficiency calculation
   const stats = Object.values(user.skillStats || {}) as SkillStat[];
   const avgProficiency = stats.length > 0 
     ? Math.round(stats.reduce((acc, s) => acc + s.avgQuizScore, 0) / stats.length)
     : 0;
 
-  // State Management
+  // Other State
   const [learningPath, setLearningPath] = useState<LearningPathItem[]>([]);
   const [skillGaps, setSkillGaps] = useState<SkillGap[]>([]);
   const [activeMicroLesson, setActiveMicroLesson] = useState<MicroLesson | null>(null);
@@ -34,23 +46,14 @@ export const UserDashboard: React.FC = () => {
   const [explorerSearch, setExplorerSearch] = useState('');
   const [explorerResult, setExplorerResult] = useState<any>(null);
 
-  const [availableCourses] = useState<Course[]>([
-    { id: '1', title: 'Advanced React Patterns', description: 'Master hooks, context, and HOCs.', price: 49.99, instructorId: 'prof1', studentsCount: 1200, rating: 4.8, level: 'Advanced', materials: [], quizBanks: [] },
-    { id: '2', title: 'Mindfulness & Wellness', description: 'Techniques for stress management and focus.', price: 19.99, instructorId: 'prof2', studentsCount: 4500, rating: 4.9, level: 'Beginner', materials: [], quizBanks: [] },
-    { id: '3', title: 'Fullstack Web Development', description: 'Node, React, and MongoDB from scratch.', price: 39.99, instructorId: 'prof3', studentsCount: 2800, rating: 4.7, level: 'Intermediate', materials: [], quizBanks: [] },
-    { id: '4', title: 'Data Structures with Python', description: 'Algorithm analysis and core structures.', price: 29.99, instructorId: 'prof4', studentsCount: 850, rating: 4.5, level: 'Intermediate', materials: [], quizBanks: [] }
-  ]);
-
-  const microTopics = [
-    { title: 'React Hook Mastery', desc: '5-minute deep dive with video demonstration', icon: 'fa-code' },
-    { title: 'Flexbox Architecture', desc: 'Visual guide to complex web layouts', icon: 'fa-layer-group' },
-    { title: 'Pythonic Logic', desc: 'Writing clean, efficient code quickly', icon: 'fa-terminal' },
-  ];
-
   useEffect(() => {
     if (activeTab === 'skills') calculateSkillGaps();
     setApiError(null);
   }, [activeTab]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
 
   const calculateSkillGaps = () => {
     const gaps: SkillGap[] = [];
@@ -68,11 +71,46 @@ export const UserDashboard: React.FC = () => {
     setSkillGaps(gaps);
   };
 
-  const handleEnroll = (courseId: string) => {
-    if (!user.enrolledCourseIds.includes(courseId)) {
-      const updatedIds = [...user.enrolledCourseIds, courseId];
-      updateUser({ ...user, enrolledCourseIds: updatedIds });
+  const handleSendMessage = async (customMessage?: string) => {
+    const text = customMessage || chatInput;
+    if (!text.trim() || loading) return;
+
+    const newMessages: ChatMessage[] = [...chatMessages, { role: 'user', text }];
+    setChatMessages(newMessages);
+    setChatInput('');
+    setLoading(true);
+    setApiError(null);
+
+    try {
+      const history = newMessages.slice(0, -1).map(m => ({
+        role: m.role,
+        parts: [{ text: m.text }]
+      }));
+      const context = `The learner is at ${user.skillLevel} level. Their bio is "${user.bio}". Interests: ${user.areasOfInterest?.join(', ')}.`;
+      
+      const response = await geminiService.getChatbotResponse(text, history, context);
+      setChatMessages([...newMessages, { role: 'model', text: response }]);
+    } catch (e: any) {
+      setApiError(e.message);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleEditImage = async (customPrompt?: string) => {
+    const prompt = customPrompt || imagePrompt;
+    if (!sourceImage || !prompt) return;
+    
+    setLoading(true);
+    setApiError(null);
+    try {
+      const base64Data = sourceImage.split(',')[1];
+      const mimeType = sourceImage.split(',')[0].split(':')[1].split(';')[0];
+      const result = await geminiService.editImage(base64Data, mimeType, prompt);
+      setEditedImage(result);
+    } catch (e: any) {
+      setApiError(e.message);
+    } finally { setLoading(false); }
   };
 
   const startMicroLesson = async (topic: string) => {
@@ -113,7 +151,15 @@ export const UserDashboard: React.FC = () => {
     } finally { setLoading(false); }
   };
 
-  // Image AI Logic
+  // Fix for line 415: Implement handleEnroll to add course to user profile
+  const handleEnroll = (courseId: string) => {
+    if (user.enrolledCourseIds.includes(courseId)) return;
+    updateUser({
+      ...user,
+      enrolledCourseIds: [...user.enrolledCourseIds, courseId]
+    });
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -126,22 +172,6 @@ export const UserDashboard: React.FC = () => {
     }
   };
 
-  const handleEditImage = async (customPrompt?: string) => {
-    const prompt = customPrompt || imagePrompt;
-    if (!sourceImage || !prompt) return;
-    
-    setLoading(true);
-    setApiError(null);
-    try {
-      const base64Data = sourceImage.split(',')[1];
-      const mimeType = sourceImage.split(',')[0].split(':')[1].split(';')[0];
-      const result = await geminiService.editImage(base64Data, mimeType, prompt);
-      setEditedImage(result);
-    } catch (e: any) {
-      setApiError(e.message);
-    } finally { setLoading(false); }
-  };
-
   const handleMicroSubmit = () => {
     setMicroSubmitted(true);
     const correctCount = Object.entries(microAnswers).filter(([id, ans]) => {
@@ -150,7 +180,6 @@ export const UserDashboard: React.FC = () => {
     }).length;
     
     const score = (correctCount / (activeMicroLesson?.quiz.length || 1)) * 100;
-    const isPerfect = score === 100;
     const today = new Date().toLocaleDateString();
 
     const mainSkill = activeMicroLesson?.quiz[0]?.skillTag || 'General Knowledge';
@@ -187,15 +216,13 @@ export const UserDashboard: React.FC = () => {
 
   const tabs: {id: UserTab, label: string, icon: string}[] = [
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-line' },
+    { id: 'chat', label: 'AI Assistant', icon: 'fa-comment-dots' },
     { id: 'courses', label: 'Courses', icon: 'fa-book' },
     { id: 'explorer', label: 'Career Explorer', icon: 'fa-compass' },
     { id: 'micro', label: 'Micro-Learning', icon: 'fa-bolt' },
     { id: 'creative', label: 'Creative AI', icon: 'fa-wand-magic-sparkles' },
     { id: 'roadmap', label: 'Roadmap', icon: 'fa-bullseye' },
     { id: 'analytics', label: 'Analytics', icon: 'fa-chart-bar' },
-    { id: 'skills', label: 'Skill Gaps', icon: 'fa-info-circle' },
-    { id: 'resume', label: 'Resume', icon: 'fa-file-alt' },
-    { id: 'achievements', label: 'Achievements', icon: 'fa-trophy' },
     { id: 'profile', label: 'Profile', icon: 'fa-user' },
   ];
 
@@ -216,8 +243,8 @@ export const UserDashboard: React.FC = () => {
              <i className="fas fa-trophy"></i>
              <span className="text-sm">{user?.points || 0} points</span>
           </div>
-          <div className="w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center font-black text-xs shadow-md border-2 border-white">
-            {user?.name.split(' ').map((n: string) => n[0]).join('')}
+          <div className="w-10 h-10 bg-indigo-600 text-white rounded-full flex items-center justify-center font-black text-xs shadow-md border-2 border-white overflow-hidden">
+            <img src={user?.avatar} alt="" className="w-full h-full object-cover" />
           </div>
           <button onClick={logout} className="flex items-center gap-2 border border-slate-200 px-4 py-1.5 rounded-lg text-xs font-black hover:bg-slate-50 transition-all">
              <i className="fas fa-sign-out-alt"></i> Logout
@@ -241,7 +268,7 @@ export const UserDashboard: React.FC = () => {
       </nav>
 
       <main className="px-12 py-8 max-w-7xl mx-auto min-h-[70vh]">
-        {loading && (
+        {loading && activeTab !== 'chat' && (
           <div className="fixed inset-0 z-50 bg-white/60 backdrop-blur-md flex flex-col items-center justify-center">
              <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
              <p className="mt-6 text-sm font-black uppercase tracking-[0.2em] text-indigo-600">AI Processing...</p>
@@ -249,7 +276,7 @@ export const UserDashboard: React.FC = () => {
         )}
 
         {apiError && (
-          <div className="mb-8 p-6 bg-rose-50 border border-rose-200 rounded-[2rem] flex items-center gap-4 text-rose-700 font-bold shadow-sm">
+          <div className="mb-8 p-6 bg-rose-50 border border-rose-200 rounded-[2rem] flex items-center gap-4 text-rose-700 font-bold shadow-sm animate-in slide-in-from-top-4">
              <i className="fas fa-exclamation-triangle text-2xl"></i>
              <p className="text-sm">{apiError}</p>
           </div>
@@ -273,9 +300,14 @@ export const UserDashboard: React.FC = () => {
                 <div className="absolute top-0 right-0 p-8 opacity-20 group-hover:scale-110 transition-transform"><i className="fas fa-rocket text-6xl"></i></div>
                 <h4 className="text-[10px] font-black uppercase tracking-[0.3em] opacity-60 mb-4">Current Master Goal</h4>
                 <p className="text-3xl font-black leading-tight mb-8 tracking-tighter">{user?.learningGoal || 'Define your path'}</p>
-                <button onClick={() => setActiveTab('roadmap')} className="flex items-center gap-3 text-xs font-black uppercase tracking-widest bg-white/10 px-8 py-3 rounded-2xl hover:bg-white/20 transition-all">
-                  Review Roadmap <i className="fas fa-arrow-right text-[10px]"></i>
-                </button>
+                <div className="flex gap-4">
+                  <button onClick={() => setActiveTab('roadmap')} className="flex items-center gap-3 text-xs font-black uppercase tracking-widest bg-white/10 px-8 py-3 rounded-2xl hover:bg-white/20 transition-all">
+                    Review Roadmap <i className="fas fa-arrow-right text-[10px]"></i>
+                  </button>
+                  <button onClick={() => setActiveTab('chat')} className="flex items-center gap-3 text-xs font-black uppercase tracking-widest bg-indigo-500/30 px-8 py-3 rounded-2xl hover:bg-indigo-500/50 transition-all">
+                    Ask AI Assistant <i className="fas fa-comment-dots text-[10px]"></i>
+                  </button>
+                </div>
               </div>
               <div className="bg-white p-10 rounded-[3rem] border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center">
                 <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-8">Average Proficiency</h4>
@@ -299,12 +331,85 @@ export const UserDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* 2. COURSES */}
+        {/* 2. CHAT ASSISTANT */}
+        {activeTab === 'chat' && (
+          <div className="animate-in slide-in-from-bottom-4 duration-500 flex flex-col h-[75vh] max-w-5xl mx-auto bg-white border border-slate-200 rounded-[3rem] overflow-hidden shadow-2xl">
+            <header className="p-8 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center text-xl shadow-lg shadow-indigo-100">
+                   <i className="fas fa-robot"></i>
+                </div>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900 leading-none">EduAI Assistant</h2>
+                  <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mt-1">Live Mentorship Active</p>
+                </div>
+              </div>
+              <button onClick={() => setChatMessages([{ role: 'model', text: `Chat history cleared. How can I help you now, ${user?.name.split(' ')[0]}?` }])} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-rose-500">Clear History</button>
+            </header>
+
+            <div className="flex-1 overflow-y-auto p-10 space-y-8 no-scrollbar">
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
+                   <div className={`max-w-[80%] p-6 rounded-[2rem] text-sm font-medium leading-relaxed shadow-sm ${
+                     msg.role === 'user' 
+                       ? 'bg-indigo-600 text-white rounded-tr-none' 
+                       : 'bg-slate-50 text-slate-700 border border-slate-100 rounded-tl-none'
+                   }`}>
+                     {msg.text}
+                   </div>
+                </div>
+              ))}
+              {loading && (
+                <div className="flex justify-start animate-pulse">
+                   <div className="bg-slate-50 p-4 rounded-2xl text-slate-400 text-xs font-bold uppercase tracking-widest">EduAI is thinking...</div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            <footer className="p-8 bg-slate-50/50 border-t border-slate-100 space-y-4">
+              <div className="flex flex-wrap gap-2 mb-4">
+                 {['Explain a concept', 'Check progress', 'Career advice'].map(tip => (
+                   <button 
+                     key={tip} 
+                     onClick={() => handleSendMessage(tip)}
+                     className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-500 hover:border-indigo-600 hover:text-indigo-600 transition-all shadow-sm"
+                   >
+                     {tip}
+                   </button>
+                 ))}
+              </div>
+              <div className="flex gap-4">
+                <input 
+                  type="text" 
+                  value={chatInput}
+                  onChange={(e) => setChatInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                  placeholder="Ask me anything about your learning journey..." 
+                  className="flex-1 px-8 py-4 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-600 text-sm font-medium shadow-sm"
+                />
+                <button 
+                  onClick={() => handleSendMessage()}
+                  disabled={loading}
+                  className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center text-xl shadow-xl hover:bg-indigo-700 transition-all disabled:opacity-50"
+                >
+                  <i className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
+                </button>
+              </div>
+            </footer>
+          </div>
+        )}
+
+        {/* 3. COURSES */}
         {activeTab === 'courses' && (
           <div className="animate-in fade-in duration-500 space-y-8">
             <h2 className="text-3xl font-black text-slate-900">Course Library</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {availableCourses.map(course => (
+              {[
+                { id: '1', title: 'Advanced React Patterns', description: 'Master hooks, context, and HOCs.', price: 49.99, rating: 4.8 },
+                { id: '2', title: 'Mindfulness & Wellness', description: 'Techniques for stress management and focus.', price: 19.99, rating: 4.9 },
+                { id: '3', title: 'Fullstack Web Development', description: 'Node, React, and MongoDB from scratch.', price: 39.99, rating: 4.7 }
+              ].map(course => (
                 <div key={course.id} className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm hover:shadow-xl transition-all group flex flex-col h-full">
                   <div className="h-48 bg-slate-100 flex items-center justify-center relative">
                     <i className="fas fa-graduation-cap text-6xl text-slate-200 group-hover:text-indigo-500 transition-colors"></i>
@@ -326,7 +431,7 @@ export const UserDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* 3. CAREER EXPLORER */}
+        {/* 4. CAREER EXPLORER */}
         {activeTab === 'explorer' && (
           <div className="animate-in slide-in-from-bottom-4 duration-500 pb-20">
             <h2 className="text-3xl font-black text-slate-900 mb-2">Career Explorer</h2>
@@ -369,37 +474,28 @@ export const UserDashboard: React.FC = () => {
                     </div>
                   </div>
                 </div>
-                <div className="bg-indigo-600 rounded-[2rem] p-8 text-white flex items-center justify-between shadow-xl">
-                  <div className="flex items-center gap-6">
-                    <div className="w-14 h-14 bg-white/20 rounded-2xl flex items-center justify-center text-2xl"><i className="fas fa-map-signs"></i></div>
-                    <div>
-                      <p className="font-black text-xl">Matches your interests!</p>
-                      <p className="text-sm opacity-80 font-medium">Click below to generate a roadmap for this role.</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setActiveTab('roadmap');
-                      generateRoadmap(explorerResult.title);
-                    }}
-                    className="px-10 py-4 bg-white text-indigo-700 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-50 transition-all shadow-lg"
-                  >
-                    Start Roadmap
-                  </button>
-                </div>
+                <button 
+                  onClick={() => {
+                    setActiveTab('roadmap');
+                    generateRoadmap(explorerResult.title);
+                  }}
+                  className="w-full py-6 bg-indigo-600 text-white rounded-[2rem] text-xs font-black uppercase tracking-widest shadow-xl hover:bg-indigo-700 transition-all"
+                >
+                  Start Career Roadmap
+                </button>
               </div>
             )}
           </div>
         )}
 
-        {/* 4. MICRO-LEARNING */}
+        {/* 5. MICRO-LEARNING */}
         {activeTab === 'micro' && (
           <div className="animate-in slide-in-from-bottom-4 duration-500 pb-20">
             <h2 className="text-3xl font-black text-slate-900 mb-2">Video Micro-Learning</h2>
             <p className="text-slate-400 font-medium mb-10">4-stage mastery: Concept, Video, Notes, and Quiz.</p>
 
             {activeMicroLesson ? (
-              <div className="bg-white border border-slate-200 rounded-[3rem] p-12 shadow-2xl max-w-5xl mx-auto">
+              <div className="bg-white border border-slate-200 rounded-[3rem] p-12 shadow-2xl max-w-5xl mx-auto animate-in zoom-in-95 duration-500">
                 <button onClick={() => setActiveMicroLesson(null)} className="text-[10px] font-black text-slate-400 mb-12 uppercase tracking-widest hover:text-indigo-600">
                   <i className="fas fa-arrow-left mr-2"></i> Exit Lesson
                 </button>
@@ -419,17 +515,10 @@ export const UserDashboard: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="mb-16">
-                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-l-4 border-emerald-500 pl-4 mb-6">Stage 3: Key Takeaways</h4>
-                  <div className="p-10 bg-slate-50 rounded-[2rem] border border-slate-100 font-bold text-slate-600 text-sm italic shadow-inner">
-                    "This architecture prioritizes modularity. Remember to keep components pure, utilize state only when necessary, and ensure that data flow remains unidirectional for predictable scaling."
-                  </div>
-                </div>
-
                 <div className="space-y-8 pt-12 border-t border-slate-100">
                   <h4 className="text-xl font-black text-slate-800 flex items-center gap-3">
                     <span className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shadow-inner"><i className="fas fa-check-double"></i></span>
-                    Stage 4: Concept Check
+                    Final Concept Check
                   </h4>
                   {activeMicroLesson.quiz.map((q, idx) => (
                     <div key={idx} className="space-y-4">
@@ -442,7 +531,7 @@ export const UserDashboard: React.FC = () => {
                             onClick={() => setMicroAnswers(prev => ({...prev, [q.id]: oIdx}))}
                             className={`p-6 rounded-2xl border text-sm font-bold text-left transition-all ${
                               microAnswers[q.id] === oIdx 
-                                ? microSubmitted ? (oIdx === q.correctAnswer ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white') : 'bg-indigo-600 text-white shadow-lg'
+                                ? microSubmitted ? (oIdx === q.correctAnswer ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'bg-rose-600 text-white shadow-lg shadow-rose-200') : 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
                                 : microSubmitted && oIdx === q.correctAnswer ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-slate-100 hover:border-indigo-300'
                             }`}
                           >
@@ -457,19 +546,19 @@ export const UserDashboard: React.FC = () => {
                        Submit Quiz & Complete Lesson
                     </button>
                   ) : (
-                    <div className="bg-emerald-50 border border-emerald-100 p-8 rounded-[2.5rem] flex items-center justify-between gap-6 mt-12 shadow-sm animate-in fade-in zoom-in duration-300">
-                       <div className="flex items-center gap-6">
-                          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-emerald-500 text-3xl shadow-sm"><i className="fas fa-trophy"></i></div>
-                          <div><p className="font-black text-emerald-900 text-xl">Success!</p><p className="text-emerald-700 text-sm font-medium">Lesson verified. Proficiency increased.</p></div>
-                       </div>
-                       <button onClick={() => setActiveMicroLesson(null)} className="px-10 py-4 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-emerald-700 transition-all">Back to List</button>
-                    </div>
+                    <button onClick={() => setActiveMicroLesson(null)} className="w-full py-6 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-700 shadow-xl mt-12 transition-all">
+                       Back to Lessons
+                    </button>
                   )}
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                {microTopics.map((topic, i) => (
+                {[
+                  { title: 'React Hook Mastery', desc: '5-minute deep dive with video demonstration', icon: 'fa-code' },
+                  { title: 'Flexbox Architecture', desc: 'Visual guide to complex web layouts', icon: 'fa-layer-group' },
+                  { title: 'Pythonic Logic', desc: 'Writing clean, efficient code quickly', icon: 'fa-terminal' },
+                ].map((topic, i) => (
                   <div key={i} className="bg-white border border-slate-100 rounded-[2.5rem] p-10 hover:shadow-2xl transition-all group flex flex-col justify-between">
                     <div>
                       <div className="flex justify-between items-start mb-10">
@@ -491,7 +580,7 @@ export const UserDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* 5. CREATIVE AI (IMAGE EDITING) */}
+        {/* 6. CREATIVE AI (IMAGE EDITING) */}
         {activeTab === 'creative' && (
           <div className="animate-in slide-in-from-bottom-4 duration-500 pb-20 max-w-5xl mx-auto">
             <h2 className="text-3xl font-black text-slate-900 mb-2">Creative AI Studio</h2>
@@ -500,7 +589,7 @@ export const UserDashboard: React.FC = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
               <div className="space-y-6">
                 <div 
-                  className="bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] aspect-square flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:border-indigo-400 transition-all overflow-hidden relative group"
+                  className="bg-white border-2 border-dashed border-slate-200 rounded-[2.5rem] aspect-square flex flex-col items-center justify-center p-8 text-center cursor-pointer hover:border-indigo-400 transition-all overflow-hidden relative group shadow-sm"
                   onClick={() => fileInputRef.current?.click()}
                 >
                   {sourceImage ? (
@@ -524,7 +613,8 @@ export const UserDashboard: React.FC = () => {
                       type="text" 
                       value={imagePrompt}
                       onChange={(e) => setImagePrompt(e.target.value)}
-                      placeholder="e.g., Add a retro filter, Change sky to sunset"
+                      onKeyPress={(e) => e.key === 'Enter' && handleEditImage()}
+                      placeholder="e.g., Add a retro filter, Remove background"
                       className="w-full px-8 py-5 bg-white border border-slate-200 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-600 text-sm font-medium shadow-sm pr-20"
                     />
                     <button 
@@ -536,23 +626,10 @@ export const UserDashboard: React.FC = () => {
                     </button>
                   </div>
                 </div>
-
-                <div className="flex flex-wrap gap-2 pt-4">
-                  <h4 className="w-full text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Popular Presets</h4>
-                  {['Add a retro filter', 'Make it a sketch', 'Enhance colors', 'Add professional lighting'].map(preset => (
-                    <button 
-                      key={preset}
-                      onClick={() => handleEditImage(preset)}
-                      className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 hover:text-indigo-600 transition-all border border-transparent hover:border-indigo-100"
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
               </div>
 
               <div className="space-y-6">
-                <div className="bg-slate-900 rounded-[2.5rem] aspect-square flex items-center justify-center p-8 text-center relative overflow-hidden">
+                <div className="bg-slate-900 rounded-[2.5rem] aspect-square flex items-center justify-center p-8 text-center relative overflow-hidden shadow-2xl">
                   {editedImage ? (
                     <img src={editedImage} className="w-full h-full object-contain rounded-2xl shadow-2xl animate-in fade-in duration-1000" alt="Result" />
                   ) : (
@@ -586,7 +663,7 @@ export const UserDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* 6. ANALYTICS */}
+        {/* 7. ANALYTICS */}
         {activeTab === 'analytics' && (
           <div className="animate-in fade-in duration-500 space-y-8 pb-20">
             <h2 className="text-3xl font-black text-slate-900">Learning Insights</h2>
@@ -608,7 +685,7 @@ export const UserDashboard: React.FC = () => {
                      ) : (
                        <div className="h-full flex flex-col items-center justify-center text-slate-300 opacity-50">
                          <i className="fas fa-chart-area text-6xl mb-6"></i>
-                         <p className="text-sm font-black uppercase tracking-widest">Start a Micro-Sprint to see insights</p>
+                         <p className="text-sm font-black uppercase tracking-widest">Complete a lesson to see insights</p>
                        </div>
                      )}
                   </div>
@@ -629,14 +706,15 @@ export const UserDashboard: React.FC = () => {
         {activeTab === 'profile' && (
           <div className="animate-in fade-in duration-500 space-y-10 pb-20">
             <div className="bg-white border border-slate-200 rounded-[2.5rem] p-12 flex items-center gap-10 shadow-sm">
-               <div className="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-black border-4 border-white shadow-2xl">
-                 {user?.name.split(' ').map((n: string) => n[0]).join('')}
+               <div className="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center text-white text-4xl font-black border-4 border-white shadow-2xl overflow-hidden">
+                 <img src={user?.avatar} alt="" className="w-full h-full object-cover" />
                </div>
                <div>
                   <h2 className="text-3xl font-black text-slate-900 mb-1">{user?.name}</h2>
                   <p className="text-slate-400 font-bold text-lg">{user?.email}</p>
                   <div className="mt-4 flex gap-2">
                     <span className="px-3 py-1 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-lg">PRO Member</span>
+                    <span className="px-3 py-1 bg-amber-500 text-white text-[9px] font-black uppercase tracking-widest rounded-lg">Streak: {user?.streak} Days</span>
                   </div>
                </div>
             </div>
@@ -670,20 +748,6 @@ export const UserDashboard: React.FC = () => {
                        <span key={tag} className="px-6 py-2.5 bg-slate-50 text-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer">
                          {tag}
                        </span>
-                     ))}
-                  </div>
-               </section>
-
-               <section>
-                  <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-8">Secondary Goals</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                     {user?.secondaryGoals?.map((goal: string) => (
-                       <div key={goal} className="flex items-center gap-4 bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
-                         <div className="w-7 h-7 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center text-xs shadow-inner">
-                            <i className="fas fa-check"></i>
-                         </div>
-                         <p className="text-base font-black text-slate-800">{goal}</p>
-                       </div>
                      ))}
                   </div>
                </section>

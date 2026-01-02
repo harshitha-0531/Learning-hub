@@ -12,7 +12,8 @@ async function safeApiCall<T>(call: () => Promise<T>, retries = 2): Promise<T> {
   try {
     return await call();
   } catch (error: any) {
-    const isRateLimit = error?.message?.includes('429') || error?.status === 429;
+    const errText = error?.message || '';
+    const isRateLimit = errText.includes('429') || errText.includes('RESOURCE_EXHAUSTED') || error?.status === 429;
     
     if (isRateLimit && retries > 0) {
       // Wait for 3 seconds before retrying
@@ -21,10 +22,9 @@ async function safeApiCall<T>(call: () => Promise<T>, retries = 2): Promise<T> {
     }
     
     if (isRateLimit) {
-      throw new Error("The AI service is currently busy due to high demand (Quota Exceeded). Please wait 10-20 seconds and try your request again.");
+      throw new Error("The AI service is currently busy due to high demand. Please wait a few seconds and try again.");
     }
     
-    // Log other errors for debugging
     console.error("Gemini API Error:", error);
     throw error;
   }
@@ -128,11 +128,16 @@ export const geminiService = {
     });
   },
 
-  async getChatbotResponse(message: string): Promise<string> {
+  async getChatbotResponse(message: string, history: { role: 'user' | 'model'; parts: { text: string }[] }[] = [], context: string = ''): Promise<string> {
     return safeApiCall(async () => {
       const chat = ai.chats.create({
         model: 'gemini-3-pro-preview',
-        config: { systemInstruction: 'You are EduAI assistant. Be concise.' }
+        config: { 
+          systemInstruction: `You are EduAI, a brilliant and supportive learning assistant. ${context}. 
+          Your goal is to clarify doubts, explain complex topics simply, and encourage the learner. 
+          Use clear formatting and keep responses relatively concise but thorough.`,
+        },
+        history: history
       });
       const response = await chat.sendMessage({ message });
       return response.text || '';
