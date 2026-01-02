@@ -1,22 +1,32 @@
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, Modality } from "@google/genai";
 import { LearningPathItem, QuizQuestion, SkillGap, Course, MicroLesson } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 /**
- * Wraps API calls to catch 429 Quota Exhausted errors and other potential failures.
- * Returns a human-readable error message that the UI can display gracefully.
+ * Executes an API call with automatic retries for rate-limiting (429) errors.
+ * Uses a simple delay before retrying.
  */
-async function safeApiCall<T>(call: () => Promise<T>): Promise<T> {
+async function safeApiCall<T>(call: () => Promise<T>, retries = 2): Promise<T> {
   try {
     return await call();
   } catch (error: any) {
-    if (error?.message?.includes('429')) {
-      throw new Error("EduAI is taking a quick break (Rate Limit reached). Please try again in 30 seconds!");
+    const isRateLimit = error?.message?.includes('429') || error?.status === 429;
+    
+    if (isRateLimit && retries > 0) {
+      // Wait for 3 seconds before retrying
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      return safeApiCall(call, retries - 1);
     }
+    
+    if (isRateLimit) {
+      throw new Error("The AI service is currently busy due to high demand (Quota Exceeded). Please wait 10-20 seconds and try your request again.");
+    }
+    
+    // Log other errors for debugging
     console.error("Gemini API Error:", error);
-    throw new Error("Something went wrong with the AI service. Please try again later.");
+    throw error;
   }
 }
 
@@ -58,7 +68,7 @@ export const geminiService = {
     return safeApiCall(async () => {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Analyze the career path for: "${interestOrSkills}". Provide a realistic profile with current market trends including salary and demand.`,
+        contents: `Analyze the career path for someone interested in: "${interestOrSkills}". Provide a realistic profile including salary and demand.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -83,7 +93,7 @@ export const geminiService = {
     return safeApiCall(async () => {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Create a 5-minute micro-lesson about "${topic}". Provide a clear educational Concept, Short Notes (key takeaways), and 2 quiz questions for assessment.`,
+        contents: `Create a 5-minute micro-lesson about "${topic}". Provide a clear educational Concept, Short Notes (3 bullet points), and 2 quiz questions.`,
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -122,7 +132,7 @@ export const geminiService = {
     return safeApiCall(async () => {
       const chat = ai.chats.create({
         model: 'gemini-3-pro-preview',
-        config: { systemInstruction: 'You are EduAI assistant. Be helpful, concise, and professional.' }
+        config: { systemInstruction: 'You are EduAI assistant. Be concise.' }
       });
       const response = await chat.sendMessage({ message });
       return response.text || '';
@@ -132,13 +142,40 @@ export const geminiService = {
   async getCourseErrorAnalysis(courseTitle: string, failures: any[]): Promise<string> {
     return safeApiCall(async () => {
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-preview',
-        contents: `Analyze the following student quiz failures for the course "${courseTitle}": ${JSON.stringify(failures)}. Identify conceptual misunderstandings and suggest curriculum improvements.`,
-        config: {
-          thinkingConfig: { thinkingBudget: 4000 }
-        }
+        model: 'gemini-3-flash-preview',
+        contents: `Analyze the following student failures in the course "${courseTitle}": ${JSON.stringify(failures)}. 
+        Provide a detailed pedagogical summary identifying the most common conceptual misunderstandings 
+        and specific suggestions for improving the curriculum to address these gaps.`,
       });
-      return response.text || "No analysis could be generated at this time.";
+      return response.text || "No analysis available at this time.";
+    });
+  },
+
+  async editImage(base64Data: string, mimeType: string, prompt: string): Promise<string> {
+    return safeApiCall(async () => {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                data: base64Data,
+                mimeType: mimeType,
+              },
+            },
+            {
+              text: prompt,
+            },
+          ],
+        },
+      });
+      
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        }
+      }
+      throw new Error("The AI did not return an edited image.");
     });
   }
 };

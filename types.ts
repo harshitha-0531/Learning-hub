@@ -1,9 +1,20 @@
 
 export type UserRole = 'USER' | 'ADMIN' | 'INSTRUCTOR';
 
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  points: number;
+  earnedDate?: string;
+  icon: string;
+  isEarned: boolean;
+}
+
 export interface SkillStat {
   name: string;
   level: 'Beginner' | 'Intermediate' | 'Advanced';
+  confidenceScore: number;
   avgQuizScore: number;
   timeInvestedHours: number;
   lastTestedDate: string;
@@ -26,8 +37,9 @@ export interface User {
   learningStyle?: string;
   areasOfInterest?: string[];
   secondaryGoals?: string[];
-  coursesCompletedCount?: number;
-  achievementsCount?: number;
+  coursesCompletedCount: number;
+  lessonsCompletedCount: number;
+  achievements: Achievement[];
   skillStats: Record<string, SkillStat>;
   quizHistory: { topic: string; score: number; date: string }[];
 }
@@ -37,6 +49,7 @@ export interface AuthContextType {
   login: (email: string, role: UserRole) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
+  updateUser: (updatedUser: User) => void;
 }
 
 export interface LearningPathItem {
@@ -55,7 +68,7 @@ export interface QuizQuestion {
   skillTag: string;
 }
 
-// Fix: Added missing QuizBank interface
+// Added QuizBank interface to fix import error in InstructorDashboard.tsx
 export interface QuizBank {
   id: string;
   title: string;
@@ -63,7 +76,7 @@ export interface QuizBank {
   questions: QuizQuestion[];
 }
 
-// Fix: Added missing QuizResult interface
+// Added QuizResult interface to fix import error in InstructorDashboard.tsx
 export interface QuizResult {
   courseId: string;
   quizBankId: string;
@@ -76,6 +89,7 @@ export interface MicroLesson {
   title: string;
   description: string;
   content: string;
+  videoUrl?: string;
   duration: string;
   quiz: QuizQuestion[];
 }
@@ -90,7 +104,7 @@ export interface Course {
   rating: number;
   level: 'Beginner' | 'Intermediate' | 'Advanced';
   materials: { type: 'video' | 'doc'; title: string; url: string }[];
-  // Fix: Changed from any[] to QuizBank[]
+  // Updated from any[] to QuizBank[] to support the InstructorDashboard
   quizBanks: QuizBank[];
 }
 
