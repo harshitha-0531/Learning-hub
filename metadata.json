@@ -1,0 +1,8 @@
+{
+  "name": "EduAI - Lifelong Learning Platform",
+  "description": "An AI-powered personalized learning platform featuring adaptive quizzes, custom learning paths, skill gap analysis, and gamified lifelong education tools.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
