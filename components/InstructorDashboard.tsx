@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { geminiService } from '../services/geminiService';
-import { Course, QuizBank, QuizQuestion, QuizResult } from '../types';
+import { Course, QuizBank, QuizQuestion, QuizResult, User } from '../types';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   BarChart, Bar, Cell 
@@ -15,15 +15,48 @@ interface SubmissionDetail extends QuizResult {
   questions: QuizQuestion[];
 }
 
+interface StudentEnrollment {
+  id: string;
+  name: string;
+  avatar: string;
+  courseTitle: string;
+  progress: number;
+  lastActive: string;
+  email: string;
+}
+
 export const InstructorDashboard: React.FC = () => {
   const { user, logout } = useAuth();
-  const [activeTab, setActiveTab] = useState<'courses' | 'analytics' | 'students' | 'revenue'>('analytics');
+  const [activeTab, setActiveTab] = useState<'courses' | 'analytics' | 'students' | 'submissions' | 'revenue'>('analytics');
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [viewingSubmission, setViewingSubmission] = useState<SubmissionDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [courseAnalysis, setCourseAnalysis] = useState<string | null>(null);
+  const [allStudents, setAllStudents] = useState<StudentEnrollment[]>([]);
 
-  // Mock Data
+  // Mock Data & Database Logic
+  useEffect(() => {
+    const db = localStorage.getItem('eduai_users_db');
+    if (db) {
+      const users: User[] = JSON.parse(db);
+      // Filter for users who are enrolled in "Instructor's courses"
+      // In a real app, we'd check against actual course IDs. 
+      // For this prototype, we'll map all 'USER' role accounts as potential students.
+      const enrollments: StudentEnrollment[] = users
+        .filter(u => u.role === 'USER')
+        .map(u => ({
+          id: u.id,
+          name: u.name,
+          avatar: u.avatar,
+          email: u.email,
+          courseTitle: u.learningGoal || 'General Learning',
+          progress: Math.floor(Math.random() * 100), // Simulated progress
+          lastActive: new Date(u.lastActive).toLocaleDateString()
+        }));
+      setAllStudents(enrollments);
+    }
+  }, []);
+
   const [courses] = useState<Course[]>([
     {
       id: '1',
@@ -91,16 +124,9 @@ export const InstructorDashboard: React.FC = () => {
     { name: 'Sun', enrollments: 40 },
   ];
 
-  const performanceData = courses.map(c => ({
-    name: c.title,
-    avgScore: Math.floor(Math.random() * 30) + 65,
-    completions: Math.floor(c.studentsCount * 0.4)
-  }));
-
   const handleAnalyzeCourseMistakes = async (course: Course) => {
     setLoading(true);
     try {
-      // Sample data for Gemini analysis
       const failures = submissions.filter(s => s.score < 80).map(s => ({
         student: s.studentName,
         wrongAnswers: Object.entries(s.answers).filter(([id]) => {
@@ -118,7 +144,7 @@ export const InstructorDashboard: React.FC = () => {
   const selectedCourse = courses.find(c => c.id === selectedCourseId);
 
   return (
-    <div className="flex h-screen bg-slate-50 overflow-hidden">
+    <div className="flex h-screen bg-slate-50 overflow-hidden text-slate-900">
       {/* Sidebar */}
       <aside className="w-64 bg-slate-900 text-white flex flex-col">
         <div className="p-6 border-b border-slate-800 flex items-center gap-3">
@@ -128,7 +154,8 @@ export const InstructorDashboard: React.FC = () => {
         <nav className="flex-1 p-4 space-y-2">
           <SidebarBtn active={activeTab === 'analytics'} onClick={() => {setActiveTab('analytics'); setSelectedCourseId(null); setViewingSubmission(null);}} icon="fa-chart-pie" label="Analytics" />
           <SidebarBtn active={activeTab === 'courses'} onClick={() => {setActiveTab('courses'); setSelectedCourseId(null); setViewingSubmission(null);}} icon="fa-book" label="Course Manager" />
-          <SidebarBtn active={activeTab === 'students'} onClick={() => {setActiveTab('students'); setSelectedCourseId(null); setViewingSubmission(null);}} icon="fa-user-graduate" label="Submissions" />
+          <SidebarBtn active={activeTab === 'students'} onClick={() => {setActiveTab('students'); setSelectedCourseId(null); setViewingSubmission(null);}} icon="fa-user-graduate" label="Students" />
+          <SidebarBtn active={activeTab === 'submissions'} onClick={() => {setActiveTab('submissions'); setSelectedCourseId(null); setViewingSubmission(null);}} icon="fa-vial" label="Submissions" />
           <SidebarBtn active={activeTab === 'revenue'} onClick={() => {setActiveTab('revenue'); setSelectedCourseId(null); setViewingSubmission(null);}} icon="fa-wallet" label="Earnings" />
         </nav>
         <div className="p-4 border-t border-slate-800">
@@ -151,7 +178,7 @@ export const InstructorDashboard: React.FC = () => {
           <div className="absolute inset-0 z-50 bg-white/40 backdrop-blur-sm flex items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <div className="w-12 h-12 border-4 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-teal-700 font-black text-xs uppercase tracking-widest">AI analyzing mistakes...</p>
+              <p className="text-teal-700 font-black text-xs uppercase tracking-widest">AI processing...</p>
             </div>
           </div>
         )}
@@ -179,7 +206,7 @@ export const InstructorDashboard: React.FC = () => {
                </div>
                <div>
                  <p className="text-xs font-black uppercase tracking-widest opacity-80">AI Pedagogical View</p>
-                 <p className="text-sm font-medium">This student struggled with {viewingSubmission.questions.filter(q => viewingSubmission.answers[q.id] !== q.correctAnswer).length} core concepts. Below are the AI-generated explanations and resources.</p>
+                 <p className="text-sm font-medium">This student struggled with {viewingSubmission.questions.filter(q => viewingSubmission.answers[q.id] !== q.correctAnswer).length} core concepts.</p>
                </div>
             </div>
 
@@ -202,25 +229,10 @@ export const InstructorDashboard: React.FC = () => {
                             {q.options[userChoice] || 'No Answer'}
                          </div>
                        </div>
-                       {!isCorrect && (
-                         <div className="space-y-2">
-                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Correct Answer</p>
-                           <div className="p-4 rounded-xl border border-emerald-500 bg-emerald-50 text-emerald-700 font-bold text-sm">
-                              {q.options[q.correctAnswer]}
-                           </div>
-                         </div>
-                       )}
                     </div>
                     <div className="mt-6 p-6 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                       <div className="flex items-center gap-2 mb-2">
-                         <i className="fas fa-comment-dots text-teal-600"></i>
-                         <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">AI Mistake Analysis</p>
-                       </div>
-                       <p className="text-sm text-slate-600 leading-relaxed italic">{q.explanation}</p>
-                       <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded">Skill: {q.skillTag}</span>
-                          <a href={`https://www.google.com/search?q=${encodeURIComponent(q.skillTag)}`} target="_blank" className="text-[10px] font-black text-slate-400 hover:text-teal-600 transition-colors uppercase">View Resource <i className="fas fa-external-link-alt ml-1"></i></a>
-                       </div>
+                       <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">AI Feedback</p>
+                       <p className="text-sm text-slate-600 italic">{q.explanation}</p>
                     </div>
                   </div>
                 );
@@ -231,72 +243,43 @@ export const InstructorDashboard: React.FC = () => {
           <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
             <header className="flex justify-between items-center">
               <div>
-                <h1 className="text-3xl font-black text-slate-900">
+                <h1 className="text-3xl font-black text-slate-900 tracking-tight">
                   {activeTab === 'analytics' && 'Platform Performance'}
                   {activeTab === 'courses' && 'Course Library'}
-                  {activeTab === 'students' && 'Submission History'}
+                  {activeTab === 'students' && 'Student Directory'}
+                  {activeTab === 'submissions' && 'Submission History'}
                   {activeTab === 'revenue' && 'Revenue Insights'}
                 </h1>
-                <p className="text-slate-500 font-medium tracking-tight">Managing global learning activity and user engagement</p>
-              </div>
-              <div className="flex gap-4">
-                <button className="bg-white text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 text-sm">
-                  <i className="fas fa-calendar-alt mr-2"></i> Last 30 Days
-                </button>
+                <p className="text-slate-500 font-medium">Monitoring global learning activity and user engagement</p>
               </div>
             </header>
 
             {activeTab === 'analytics' && (
               <div className="space-y-8">
-                {/* Stat Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                  <StatCard label="Total Students" value="2,090" trend="+12.5%" icon="fa-users" color="bg-indigo-500" />
+                  <StatCard label="Total Students" value={allStudents.length.toString()} trend="+12%" icon="fa-users" color="bg-indigo-500" />
                   <StatCard label="Total Revenue" value="$14,580" trend="+8.2%" icon="fa-dollar-sign" color="bg-teal-500" />
                   <StatCard label="Avg. Course Rating" value="4.7" trend="+0.1" icon="fa-star" color="bg-amber-500" />
                   <StatCard label="Quiz Pass Rate" value="78%" trend="-2%" icon="fa-vial" color="bg-rose-500" />
                 </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                    <h3 className="text-lg font-black mb-6 text-slate-800">Enrollment Trends</h3>
-                    <div className="h-64">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={enrollmentData}>
-                          <defs>
-                            <linearGradient id="colorEnroll" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.3}/>
-                              <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}/>
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                          <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                          <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
-                          <Tooltip />
-                          <Area type="monotone" dataKey="enrollments" stroke="#14b8a6" strokeWidth={3} fillOpacity={1} fill="url(#colorEnroll)" />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                    <div className="flex justify-between items-center mb-6">
-                       <h3 className="text-lg font-black text-slate-800">Student Error Patterns</h3>
-                       <button onClick={() => handleAnalyzeCourseMistakes(courses[0])} className="text-xs font-black text-teal-600 bg-teal-50 px-3 py-1.5 rounded-lg hover:bg-teal-100 transition-all">
-                         <i className="fas fa-wand-magic-sparkles mr-2"></i>AI ANALYSIS
-                       </button>
-                    </div>
-                    {courseAnalysis ? (
-                       <div className="h-64 overflow-y-auto pr-2 custom-scrollbar">
-                         <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap font-medium">
-                           {courseAnalysis}
-                         </div>
-                       </div>
-                    ) : (
-                      <div className="h-64 flex flex-col items-center justify-center text-slate-300">
-                        <i className="fas fa-chart-line text-4xl mb-4 opacity-10"></i>
-                        <p className="text-xs font-black uppercase tracking-widest">Select analysis to start</p>
-                      </div>
-                    )}
+                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
+                  <h3 className="text-lg font-black mb-6">Enrollment Trends</h3>
+                  <div className="h-64">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={enrollmentData}>
+                        <defs>
+                          <linearGradient id="colorEnroll" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor="#14b8a6" stopOpacity={0}/>
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                        <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                        <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 12}} />
+                        <Tooltip />
+                        <Area type="monotone" dataKey="enrollments" stroke="#14b8a6" strokeWidth={3} fillOpacity={1} fill="url(#colorEnroll)" />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
                 </div>
               </div>
@@ -304,43 +287,118 @@ export const InstructorDashboard: React.FC = () => {
 
             {activeTab === 'students' && (
               <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden animate-in fade-in duration-500">
-                 <div className="p-8 border-b border-slate-100 flex justify-between items-center">
-                   <div>
-                     <h3 className="text-xl font-black">Submission History</h3>
-                     <p className="text-sm text-slate-400 font-medium">Review individual student performance and AI mistake analysis.</p>
-                   </div>
-                   <input type="text" placeholder="Search student..." className="px-4 py-2 bg-slate-50 border border-slate-100 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 text-sm" />
+                <div className="p-10 border-b border-slate-100 flex justify-between items-center">
+                  <div>
+                    <h3 className="text-xl font-black">Active Learners</h3>
+                    <p className="text-sm text-slate-400 font-medium">Track completion rates and engagement metrics per student.</p>
+                  </div>
+                  <div className="flex gap-4">
+                     <div className="relative">
+                       <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-300"></i>
+                       <input type="text" placeholder="Search directory..." className="pl-12 pr-6 py-3 bg-slate-50 border-none rounded-2xl text-sm outline-none w-64 focus:ring-2 focus:ring-teal-500" />
+                     </div>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                      <tr>
+                        <th className="px-10 py-6">Identity</th>
+                        <th className="px-10 py-6">Primary Course / Goal</th>
+                        <th className="px-10 py-6">Curriculum Progress</th>
+                        <th className="px-10 py-6">Last Session</th>
+                        <th className="px-10 py-6 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {allStudents.map((s) => (
+                        <tr key={s.id} className="hover:bg-slate-50/80 transition-all group">
+                          <td className="px-10 py-6">
+                            <div className="flex items-center gap-4">
+                              <img src={s.avatar} className="w-11 h-11 rounded-xl bg-slate-100 object-cover border border-slate-200" alt="" />
+                              <div>
+                                <p className="font-black text-slate-900 text-sm leading-none mb-1">{s.name}</p>
+                                <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{s.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-10 py-6">
+                            <span className="text-sm font-bold text-slate-700">{s.courseTitle}</span>
+                          </td>
+                          <td className="px-10 py-6">
+                            <div className="w-full max-w-[160px]">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-black text-teal-600 uppercase">{s.progress}% Complete</span>
+                              </div>
+                              <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full transition-all duration-1000 ${s.progress > 80 ? 'bg-emerald-500' : 'bg-indigo-500'}`} 
+                                  style={{ width: `${s.progress}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-10 py-6 text-xs text-slate-400 font-bold">
+                            {s.lastActive}
+                          </td>
+                          <td className="px-10 py-6 text-right">
+                             <button 
+                               onClick={() => setActiveTab('submissions')}
+                               className="px-5 py-2.5 bg-white border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:border-teal-600 hover:text-teal-600 transition-all shadow-sm"
+                             >
+                               View Submissions
+                             </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {allStudents.length === 0 && (
+                    <div className="p-32 text-center flex flex-col items-center">
+                       <i className="fas fa-user-slash text-6xl text-slate-100 mb-8"></i>
+                       <p className="text-slate-300 font-black uppercase tracking-widest text-sm">No students currently enrolled</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeTab === 'submissions' && (
+              <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden animate-in fade-in duration-500">
+                 <div className="p-10 border-b border-slate-100">
+                   <h3 className="text-xl font-black">Submission History</h3>
+                   <p className="text-sm text-slate-400 font-medium mt-1">Review detailed quiz performance and pedagogical feedback.</p>
                  </div>
                  <table className="w-full text-left">
                    <thead className="bg-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                      <tr>
-                       <th className="px-8 py-4">Student</th>
-                       <th className="px-8 py-4">Quiz Bank</th>
-                       <th className="px-8 py-4 text-center">Score</th>
-                       <th className="px-8 py-4">Date</th>
-                       <th className="px-8 py-4 text-right">Review</th>
+                       <th className="px-10 py-6">Student</th>
+                       <th className="px-10 py-6">Quiz Bank</th>
+                       <th className="px-10 py-6 text-center">Score</th>
+                       <th className="px-10 py-6">Date</th>
+                       <th className="px-10 py-6 text-right">Review</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100">
                       {submissions.map((sub, i) => (
-                        <tr key={i} className="hover:bg-slate-50 transition-colors group">
-                          <td className="px-8 py-5">
+                        <tr key={i} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-10 py-6">
                             <div className="flex items-center gap-3">
-                               <img src={sub.studentAvatar} className="w-8 h-8 rounded-full border border-slate-200" alt="" />
+                               <img src={sub.studentAvatar} className="w-9 h-9 rounded-full border border-slate-200" alt="" />
                                <span className="font-bold text-slate-800">{sub.studentName}</span>
                             </div>
                           </td>
-                          <td className="px-8 py-5">
+                          <td className="px-10 py-6">
                              <p className="text-sm font-bold text-slate-600">Exam Q-01</p>
-                             <p className="text-[10px] text-slate-400 uppercase">Intermediate</p>
+                             <p className="text-[10px] text-slate-400 uppercase font-black">Intermediate</p>
                           </td>
-                          <td className="px-8 py-5 text-center">
+                          <td className="px-10 py-6 text-center">
                              <span className={`text-lg font-black ${sub.score >= 80 ? 'text-emerald-600' : 'text-rose-600'}`}>{sub.score}%</span>
                           </td>
-                          <td className="px-8 py-5 text-sm text-slate-400 font-medium">{sub.date}</td>
-                          <td className="px-8 py-5 text-right">
-                             <button onClick={() => setViewingSubmission(sub)} className="px-4 py-2 bg-white text-slate-900 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-900 hover:text-white transition-all shadow-sm">
-                               Explain Mistakes
+                          <td className="px-10 py-6 text-sm text-slate-400 font-medium">{sub.date}</td>
+                          <td className="px-10 py-6 text-right">
+                             <button onClick={() => setViewingSubmission(sub)} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-teal-600 transition-all shadow-xl">
+                               Audit Submission
                              </button>
                           </td>
                         </tr>
@@ -351,16 +409,16 @@ export const InstructorDashboard: React.FC = () => {
             )}
 
             {activeTab === 'courses' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-20">
                 {courses.map(course => (
-                  <div key={course.id} className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm group hover:shadow-xl transition-all cursor-pointer" onClick={() => setSelectedCourseId(course.id)}>
+                  <div key={course.id} className="bg-white rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-sm group hover:shadow-xl transition-all cursor-pointer" onClick={() => setSelectedCourseId(course.id)}>
                     <div className="h-40 bg-slate-100 relative flex items-center justify-center">
                       <i className="fas fa-graduation-cap text-6xl text-slate-200 group-hover:text-teal-500 transition-colors"></i>
                     </div>
-                    <div className="p-6">
-                      <h3 className="font-black text-lg text-slate-800 line-clamp-1">{course.title}</h3>
-                      <p className="text-sm text-slate-500 mb-6 line-clamp-2">{course.description}</p>
-                      <button className="w-full py-3 bg-slate-900 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-teal-600 transition-all">Manage Content</button>
+                    <div className="p-8">
+                      <h3 className="font-black text-xl text-slate-800 mb-2 line-clamp-1 tracking-tight">{course.title}</h3>
+                      <p className="text-sm text-slate-500 mb-8 line-clamp-2 font-medium">{course.description}</p>
+                      <button className="w-full py-4 bg-slate-900 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-teal-600 transition-all shadow-lg">Manage Curriculum</button>
                     </div>
                   </div>
                 ))}
@@ -374,33 +432,33 @@ export const InstructorDashboard: React.FC = () => {
                 <i className="fas fa-arrow-left"></i>
               </button>
               <div>
-                <h2 className="text-3xl font-black text-slate-900">{selectedCourse?.title}</h2>
-                <p className="text-sm text-slate-500 font-medium">Curriculum Management & Student Insights</p>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">{selectedCourse?.title}</h2>
+                <p className="text-sm text-slate-500 font-medium">Curriculum Management & Content Design</p>
               </div>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
               <div className="lg:col-span-2 space-y-8">
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm">
-                   <div className="flex justify-between items-center mb-8">
-                      <h3 className="text-xl font-black text-slate-800">Course Quiz Banks</h3>
-                      <button className="text-teal-600 font-black text-sm hover:underline"><i className="fas fa-plus mr-1"></i> Add New Bank</button>
+                <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm">
+                   <div className="flex justify-between items-center mb-10">
+                      <h3 className="text-xl font-black text-slate-800">Quiz Assessment Banks</h3>
+                      <button className="text-teal-600 font-black text-xs uppercase tracking-widest bg-teal-50 px-4 py-2 rounded-xl hover:bg-teal-100 transition-all"><i className="fas fa-plus mr-2"></i> New Bank</button>
                    </div>
                    <div className="space-y-4">
                      {selectedCourse?.quizBanks.map(quiz => (
-                       <div key={quiz.id} className="flex items-center justify-between p-6 bg-slate-50 border border-slate-100 rounded-2xl group hover:border-teal-200 transition-all">
-                          <div className="flex items-center gap-4">
-                             <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center text-teal-600 shadow-sm group-hover:bg-teal-600 group-hover:text-white transition-all">
-                               <i className="fas fa-tasks"></i>
+                       <div key={quiz.id} className="flex items-center justify-between p-8 bg-slate-50/50 border border-slate-100 rounded-[2rem] group hover:border-teal-200 transition-all">
+                          <div className="flex items-center gap-6">
+                             <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-teal-600 shadow-sm group-hover:bg-teal-600 group-hover:text-white transition-all">
+                               <i className="fas fa-tasks text-xl"></i>
                              </div>
                              <div>
-                               <p className="font-bold text-slate-800">{quiz.title}</p>
-                               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{quiz.difficulty}</p>
+                               <p className="font-black text-slate-800 text-lg">{quiz.title}</p>
+                               <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{quiz.difficulty} Difficulty</p>
                              </div>
                           </div>
-                          <div className="flex items-center gap-3">
-                            <button className="px-4 py-2 bg-white text-slate-600 text-[10px] font-black uppercase tracking-widest rounded-lg border border-slate-200">Edit</button>
-                            <button className="w-10 h-10 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-500 hover:text-white transition-all"><i className="fas fa-trash-alt"></i></button>
+                          <div className="flex items-center gap-4">
+                            <button className="px-6 py-3 bg-white text-slate-600 text-[10px] font-black uppercase tracking-widest rounded-xl border border-slate-200 shadow-sm hover:border-teal-600 hover:text-teal-600 transition-all">Edit Content</button>
+                            <button className="w-12 h-12 bg-white text-rose-500 border border-slate-100 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm"><i className="fas fa-trash-alt"></i></button>
                           </div>
                        </div>
                      ))}
@@ -408,12 +466,12 @@ export const InstructorDashboard: React.FC = () => {
                 </div>
               </div>
               <div className="space-y-8">
-                <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm text-center">
-                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Total Course ROI</h4>
-                   <div className="inline-block p-8 rounded-full bg-teal-50 text-teal-600 text-3xl font-black mb-4">
+                <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm text-center">
+                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">Course Performance</h4>
+                   <div className="inline-block p-10 rounded-full bg-teal-50 text-teal-600 text-4xl font-black mb-6 shadow-inner border border-teal-100">
                      $43,400
                    </div>
-                   <p className="text-sm font-medium text-slate-500">Gross revenue generated from this specific content.</p>
+                   <p className="text-sm font-medium text-slate-500 leading-relaxed px-4">Gross cumulative revenue for this curriculum.</p>
                 </div>
               </div>
             </div>
@@ -425,24 +483,24 @@ export const InstructorDashboard: React.FC = () => {
 };
 
 const SidebarBtn: React.FC<{ active: boolean; onClick: () => void; icon: string; label: string }> = ({ active, onClick, icon, label }) => (
-  <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all ${
-    active ? 'bg-teal-600 text-white shadow-lg shadow-teal-500/10' : 'text-slate-400 hover:bg-slate-800'
+  <button onClick={onClick} className={`w-full flex items-center gap-4 px-5 py-4 rounded-2xl text-sm font-black transition-all ${
+    active ? 'bg-teal-600 text-white shadow-xl shadow-teal-500/20 border border-teal-500' : 'text-slate-400 border border-transparent hover:bg-slate-800'
   }`}>
-    <i className={`fas ${icon} w-5`}></i> {label}
+    <i className={`fas ${icon} w-6 text-center`}></i> {label}
   </button>
 );
 
 const StatCard: React.FC<{ label: string; value: string; trend: string; icon: string; color: string }> = ({ label, value, trend, icon, color }) => (
-  <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm hover:shadow-lg transition-shadow">
-    <div className="flex justify-between items-start mb-4">
-      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-xl shadow-lg ${color} shadow-opacity-20`}>
+  <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-sm hover:shadow-xl transition-all hover:-translate-y-1">
+    <div className="flex justify-between items-start mb-6">
+      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white text-2xl shadow-lg ${color} shadow-opacity-20`}>
         <i className={`fas ${icon}`}></i>
       </div>
-      <span className={`text-[10px] font-black px-2 py-1 rounded-lg ${trend.startsWith('+') ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+      <span className={`text-[10px] font-black px-3 py-1.5 rounded-xl ${trend.startsWith('+') ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}`}>
         {trend}
       </span>
     </div>
-    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-    <h4 className="text-3xl font-black text-slate-900 tracking-tighter">{value}</h4>
+    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">{label}</p>
+    <h4 className="text-4xl font-black text-slate-900 tracking-tighter">{value}</h4>
   </div>
 );
