@@ -16,7 +16,9 @@ export const LoginPage: React.FC = () => {
     if (isRegistering) {
       await register(name, email, password, role);
     } else {
-      await login(email, 'USER'); // Role is determined by the found user in DB
+      // In a real app, login checks the DB for role. 
+      // For this prototype, we'll try to find the user in our local storage DB.
+      await login(email, 'USER'); 
     }
   };
 
@@ -32,7 +34,7 @@ export const LoginPage: React.FC = () => {
             <i className="fas fa-graduation-cap text-4xl text-white"></i>
           </div>
           <h1 className="text-4xl font-black text-white tracking-tighter">EduAI</h1>
-          <p className="text-slate-400 font-medium">Your lifelong learning journey starts here.</p>
+          <p className="text-slate-400 font-medium">Your learning management gateway.</p>
         </div>
 
         {error && (
@@ -98,25 +100,34 @@ export const LoginPage: React.FC = () => {
 
           {isRegistering && (
             <div className="space-y-2">
-              <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Account Type</label>
-              <div className="grid grid-cols-2 gap-4">
+              <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Account Role</label>
+              <div className="grid grid-cols-3 gap-2">
                 <button 
                   type="button" 
                   onClick={() => setRole('USER')}
-                  className={`py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border ${
-                    role === 'USER' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg shadow-indigo-600/20' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+                  className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
+                    role === 'USER' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
                   }`}
                 >
-                  <i className="fas fa-user-graduate mr-2"></i> Learner
+                  Learner
                 </button>
                 <button 
                   type="button" 
                   onClick={() => setRole('INSTRUCTOR')}
-                  className={`py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border ${
-                    role === 'INSTRUCTOR' ? 'bg-teal-600 text-white border-teal-500 shadow-lg shadow-teal-600/20' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+                  className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
+                    role === 'INSTRUCTOR' ? 'bg-teal-600 text-white border-teal-500 shadow-lg' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
                   }`}
                 >
-                  <i className="fas fa-chalkboard-teacher mr-2"></i> Instructor
+                  Instructor
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => setRole('ADMIN')}
+                  className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
+                    role === 'ADMIN' ? 'bg-amber-600 text-white border-amber-500 shadow-lg' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
+                  }`}
+                >
+                  Admin
                 </button>
               </div>
             </div>
@@ -153,9 +164,8 @@ export const LoginPage: React.FC = () => {
         </div>
       </div>
       
-      {/* Footer Info */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600">
-        AI-Powered Personalized Learning Systems
+        Admin & Instructor Access Enabled
       </div>
     </div>
   );
