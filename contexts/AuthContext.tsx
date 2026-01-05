@@ -14,8 +14,6 @@ const INITIAL_ACHIEVEMENTS: Achievement[] = [
   { id: '2', title: 'Course Completer', description: 'Complete your first course', points: 100, icon: 'fa-graduation-cap', isEarned: false },
   { id: '3', title: 'Knowledge Seeker', description: 'Complete 5 lessons in a row', points: 25, icon: 'fa-microscope', isEarned: false },
   { id: '4', title: 'Perfect Score', description: 'Get 100% on a quiz', points: 50, icon: 'fa-check-double', isEarned: false },
-  { id: '5', title: 'Learning Streak', description: 'Learn for 7 days in a row', points: 75, icon: 'fa-fire', isEarned: false },
-  { id: '6', title: 'Early Adopter', description: 'Join the platform in its first month', points: 125, icon: 'fa-award', isEarned: false },
 ];
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -24,30 +22,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const seedPlatform = () => {
+      const usersStr = localStorage.getItem('eduai_users_db');
+      let users = usersStr ? JSON.parse(usersStr) : [];
+      
+      const adminExists = users.find((u: any) => u.role === 'ADMIN');
+      if (!adminExists) {
+        const systemAdmin: User = {
+          id: 'admin-root',
+          name: 'Global Administrator',
+          email: 'admin@eduai.com',
+          role: 'ADMIN',
+          avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=admin',
+          streak: 0,
+          points: 0,
+          lastActive: new Date().toISOString(),
+          completedSkills: [],
+          enrolledCourseIds: [],
+          coursesCompletedCount: 0,
+          lessonsCompletedCount: 0,
+          achievements: [],
+          skillStats: {},
+          quizHistory: []
+        };
+        users.push(systemAdmin);
+        localStorage.setItem('eduai_users_db', JSON.stringify(users));
+      }
+    };
+
+    seedPlatform();
     const storedUser = localStorage.getItem('eduai_active_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    if (storedUser) setUser(JSON.parse(storedUser));
     setIsLoading(false);
   }, []);
-
-  const getUsers = (): any[] => {
-    const users = localStorage.getItem('eduai_users_db');
-    return users ? JSON.parse(users) : [];
-  };
 
   const login = async (email: string, role: UserRole) => {
     setError(null);
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      const users = getUsers();
-      const foundUser = users.find(u => u.email === email);
+      await new Promise(resolve => setTimeout(resolve, 600));
+      const usersStr = localStorage.getItem('eduai_users_db');
+      const users: User[] = usersStr ? JSON.parse(usersStr) : [];
+      const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.role === role);
+      
       if (!foundUser) {
-        setError("Invalid email or user not found.");
+        setError("Account not found for this role. Check your email or role selection.");
         setIsLoading(false);
         return;
       }
+      
       setUser(foundUser);
       localStorage.setItem('eduai_active_user', JSON.stringify(foundUser));
     } finally {
@@ -57,12 +80,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const register = async (name: string, email: string, password: string, role: UserRole) => {
     setError(null);
+    if (role === 'ADMIN') {
+      setError("Unauthorized role request.");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const users = getUsers();
-      if (users.find(u => u.email === email)) {
-        setError("An account with this email already exists.");
+      const usersStr = localStorage.getItem('eduai_users_db');
+      const users: User[] = usersStr ? JSON.parse(usersStr) : [];
+      
+      if (users.find(u => u.email.toLowerCase() === email.toLowerCase())) {
+        setError("Email already registered.");
         setIsLoading(false);
         return;
       }
@@ -72,29 +101,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name,
         email,
         role,
-        avatar: `https://picsum.photos/seed/${email}/100`,
-        streak: 1,
-        points: 125, // Starting points as per visual reference
+        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
+        streak: 0,
+        points: 0,
         lastActive: new Date().toISOString(),
         completedSkills: [],
-        learningGoal: 'Advance my career in web development',
+        learningGoal: 'Self Improvement',
         enrolledCourseIds: [],
-        coursesCompletedCount: 1, // Set to 1 as per visual reference
+        coursesCompletedCount: 0,
         lessonsCompletedCount: 0,
-        bio: 'Passionate about continuous learning and professional development',
-        skillLevel: 'Intermediate',
-        learningStyle: 'Visual',
-        areasOfInterest: ['Technology', 'Business', 'Creative'],
-        secondaryGoals: ['Learn data science basics', 'Improve leadership skills'],
-        achievements: INITIAL_ACHIEVEMENTS.map(a => 
-          a.id === '6' ? { ...a, isEarned: true, earnedDate: new Date().toLocaleDateString() } : a
-        ),
-        skillStats: {}, // New user starts with empty skill stats
+        achievements: INITIAL_ACHIEVEMENTS,
+        skillStats: {},
         quizHistory: []
       };
       
-      const updatedUsers = [...users, newUser];
-      localStorage.setItem('eduai_users_db', JSON.stringify(updatedUsers));
+      localStorage.setItem('eduai_users_db', JSON.stringify([...users, newUser]));
       setUser(newUser);
       localStorage.setItem('eduai_active_user', JSON.stringify(newUser));
     } finally {
@@ -102,20 +123,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const updateUser = (updatedUser: User) => {
-    setUser(updatedUser);
-    localStorage.setItem('eduai_active_user', JSON.stringify(updatedUser));
-    const users = getUsers();
-    const index = users.findIndex(u => u.id === updatedUser.id);
-    if (index > -1) {
-      users[index] = updatedUser;
-      localStorage.setItem('eduai_users_db', JSON.stringify(users));
-    }
-  };
-
   const logout = () => {
     setUser(null);
     localStorage.removeItem('eduai_active_user');
+  };
+
+  const updateUser = (updatedUser: User) => {
+    setUser(updatedUser);
+    localStorage.setItem('eduai_active_user', JSON.stringify(updatedUser));
+    const usersStr = localStorage.getItem('eduai_users_db');
+    if (usersStr) {
+      const users: User[] = JSON.parse(usersStr);
+      const index = users.findIndex(u => u.id === updatedUser.id);
+      if (index > -1) {
+        users[index] = updatedUser;
+        localStorage.setItem('eduai_users_db', JSON.stringify(users));
+      }
+    }
   };
 
   return (
@@ -127,8 +151,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };

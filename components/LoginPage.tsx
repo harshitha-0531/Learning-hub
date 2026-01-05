@@ -16,157 +16,105 @@ export const LoginPage: React.FC = () => {
     if (isRegistering) {
       await register(name, email, password, role);
     } else {
-      // In a real app, login checks the DB for role. 
-      // For this prototype, we'll try to find the user in our local storage DB.
-      await login(email, 'USER'); 
+      await login(email, role); 
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 relative overflow-hidden p-4">
-      {/* Abstract Background Shapes */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/20 blur-[120px] rounded-full"></div>
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-600/20 blur-[120px] rounded-full"></div>
-
-      <div className="bg-white/10 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl w-full max-w-lg p-8 md:p-12 relative z-10 animate-in fade-in zoom-in duration-500">
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 relative overflow-hidden p-4">
+      <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_50%,#1e293b,0%,#020617_100%)]"></div>
+      
+      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-[3rem] shadow-2xl w-full max-w-lg p-10 md:p-14 relative z-10 animate-in fade-in zoom-in duration-700">
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-500 to-teal-400 rounded-3xl mb-6 shadow-xl shadow-indigo-500/20 rotate-3">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-indigo-500 to-teal-400 rounded-3xl mb-6 shadow-2xl shadow-indigo-500/20 rotate-6 group hover:rotate-0 transition-transform duration-500">
             <i className="fas fa-graduation-cap text-4xl text-white"></i>
           </div>
-          <h1 className="text-4xl font-black text-white tracking-tighter">EduAI</h1>
-          <p className="text-slate-400 font-medium">Your learning management gateway.</p>
+          <h1 className="text-5xl font-black text-white tracking-tighter mb-2">EduAI</h1>
+          <p className="text-slate-400 font-medium">Infinite learning, powered by intelligence.</p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center gap-3 text-rose-400 text-sm font-bold animate-in slide-in-from-top-2">
-            <i className="fas fa-circle-exclamation"></i>
+          <div className="mb-6 p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl flex items-center gap-3 text-rose-400 text-xs font-bold animate-bounce-short">
+            <i className="fas fa-exclamation-circle"></i>
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {isRegistering && (
-            <div className="space-y-2 group">
-              <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-indigo-400">
-                  <i className="fas fa-user"></i>
-                </span>
-                <input 
-                  type="text" 
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Alex Johnson"
-                  className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-                />
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-2 group">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Email Address</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-indigo-400">
-                <i className="fas fa-envelope"></i>
-              </span>
-              <input 
-                type="email" 
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2 group">
-            <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Password</label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 transition-colors group-focus-within:text-indigo-400">
-                <i className="fas fa-lock"></i>
-              </span>
-              <input 
-                type="password" 
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full pl-12 pr-4 py-4 bg-white/5 border border-white/10 rounded-2xl text-white placeholder:text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
-              />
-            </div>
-          </div>
-
+        <form onSubmit={handleSubmit} className="space-y-6">
           {isRegistering && (
             <div className="space-y-2">
-              <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Account Role</label>
-              <div className="grid grid-cols-3 gap-2">
-                <button 
-                  type="button" 
-                  onClick={() => setRole('USER')}
-                  className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
-                    role === 'USER' ? 'bg-indigo-600 text-white border-indigo-500 shadow-lg' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  Learner
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setRole('INSTRUCTOR')}
-                  className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
-                    role === 'INSTRUCTOR' ? 'bg-teal-600 text-white border-teal-500 shadow-lg' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  Instructor
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => setRole('ADMIN')}
-                  className={`py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all border ${
-                    role === 'ADMIN' ? 'bg-amber-600 text-white border-amber-500 shadow-lg' : 'bg-white/5 text-slate-400 border-white/10 hover:bg-white/10'
-                  }`}
-                >
-                  Admin
-                </button>
-              </div>
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Full Name</label>
+              <input 
+                type="text" required value={name} onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your name"
+                className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+              />
             </div>
           )}
 
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Email Address</label>
+            <input 
+              type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Password</label>
+            <input 
+              type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-6 py-4 bg-white/5 border border-white/10 rounded-2xl text-white outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+            />
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Account Role</label>
+            <div className={`grid ${isRegistering ? 'grid-cols-2' : 'grid-cols-3'} gap-3`}>
+              <RoleBtn active={role === 'USER'} onClick={() => setRole('USER')} label="Learner" color="indigo" />
+              <RoleBtn active={role === 'INSTRUCTOR'} onClick={() => setRole('INSTRUCTOR')} label="Instructor" color="teal" />
+              {!isRegistering && <RoleBtn active={role === 'ADMIN'} onClick={() => setRole('ADMIN')} label="Admin" color="amber" />}
+            </div>
+          </div>
+
           <button 
-            type="submit" 
-            disabled={isLoading} 
-            className="w-full py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-indigo-600/20 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
+            type="submit" disabled={isLoading} 
+            className="w-full py-5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black uppercase tracking-[0.2em] text-xs shadow-2xl shadow-indigo-500/20 transition-all disabled:opacity-50"
           >
-            {isLoading ? (
-              <i className="fas fa-circle-notch animate-spin"></i>
-            ) : (
-              <>
-                {isRegistering ? 'Create Account' : 'Sign In'}
-                <i className="fas fa-arrow-right group-hover:translate-x-1 transition-transform"></i>
-              </>
-            )}
+            {isLoading ? <i className="fas fa-spinner fa-spin mr-2"></i> : (isRegistering ? 'Create Account' : 'Secure Login')}
           </button>
         </form>
 
-        <div className="mt-8 text-center">
+        <div className="mt-10 text-center">
           <button 
             type="button" 
-            onClick={() => { setIsRegistering(!isRegistering); setEmail(''); setPassword(''); setName(''); }}
-            className="text-sm font-bold text-slate-400 hover:text-indigo-400 transition-colors"
+            /* Fix: removed setError(null) as it is internal to the AuthProvider. Changing mode usually triggers a refresh or is handled by context state resets. */
+            onClick={() => { setIsRegistering(!isRegistering); setRole('USER'); }}
+            className="text-xs font-bold text-slate-500 hover:text-white transition-colors"
           >
-            {isRegistering ? (
-              <>Already have an account? <span className="text-indigo-400">Log in</span></>
-            ) : (
-              <>New to EduAI? <span className="text-indigo-400">Sign up now</span></>
-            )}
+            {isRegistering ? 'Already have an account? Sign In' : 'New to EduAI? Create account'}
           </button>
         </div>
       </div>
       
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600">
-        Admin & Instructor Access Enabled
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 text-[10px] font-black uppercase tracking-[0.5em] text-slate-700">
+        System Root: admin@eduai.com
       </div>
     </div>
   );
 };
+
+const RoleBtn: React.FC<{active: boolean, onClick: () => void, label: string, color: string}> = ({active, onClick, label, color}) => (
+  <button 
+    type="button" onClick={onClick}
+    className={`py-3 rounded-xl font-black text-[9px] uppercase tracking-widest border transition-all ${
+      active 
+        ? `bg-${color}-600 border-${color}-500 text-white shadow-lg` 
+        : 'bg-white/5 border-white/10 text-slate-500 hover:bg-white/10'
+    }`}
+  >
+    {label}
+  </button>
+);
