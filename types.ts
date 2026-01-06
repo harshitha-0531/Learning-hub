@@ -1,6 +1,9 @@
 
 export type UserRole = 'USER' | 'ADMIN' | 'INSTRUCTOR';
 
+// Add assessments to UserTab for navigation consistency
+export type UserTab = 'dashboard' | 'courses' | 'explorer' | 'micro' | 'chat' | 'creative' | 'roadmap' | 'analytics' | 'profile' | 'assessments';
+
 export interface Achievement {
   id: string;
   title: string;
