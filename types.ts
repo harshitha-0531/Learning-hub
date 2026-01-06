@@ -41,7 +41,7 @@ export interface User {
   lessonsCompletedCount: number;
   achievements: Achievement[];
   skillStats: Record<string, SkillStat>;
-  quizHistory: { topic: string; score: number; date: string }[];
+  quizHistory: { topic: string; score: number; date: string; moduleTitle?: string }[];
 }
 
 export interface AuthContextType {
@@ -68,15 +68,14 @@ export interface QuizQuestion {
   skillTag: string;
 }
 
-// Added QuizBank interface to fix import error in InstructorDashboard.tsx
 export interface QuizBank {
   id: string;
   title: string;
+  description?: string;
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   questions: QuizQuestion[];
 }
 
-// Added QuizResult interface to fix import error in InstructorDashboard.tsx
 export interface QuizResult {
   courseId: string;
   quizBankId: string;
@@ -104,7 +103,6 @@ export interface Course {
   rating: number;
   level: 'Beginner' | 'Intermediate' | 'Advanced';
   materials: { type: 'video' | 'doc'; title: string; url: string }[];
-  // Updated from any[] to QuizBank[] to support the InstructorDashboard
   quizBanks: QuizBank[];
 }
 
